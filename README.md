@@ -13,7 +13,7 @@
 
 ### 截图
 
-![原demo](https://github.com/HeHongdan/WiFiDemo/image/20180823.png)![image](链接)![image](链接)
+![原demo](https://github.com/HeHongdan/WiFiDemo/blob/master/image/20180823.png)![image](https://github.com/HeHongdan/WiFiDemo/image/20180823.png)![image](链接)
 
 ---
 
@@ -28,7 +28,6 @@
 ### 项目框架
 1. WiFi控制
 2. 动态权限
-3.
 
 
 
@@ -46,11 +45,10 @@
 
 ### 更新版本
 - #### 1.1
--
 
 - #### 1.0
-- 解决原demo空指针
-- 定位权限
+-- 解决原demo空指针
+-- 定位权限
 
 
 
