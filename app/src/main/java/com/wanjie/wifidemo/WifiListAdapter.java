@@ -48,7 +48,9 @@ public class WifiListAdapter extends RecyclerView.Adapter {
     }
 
     public void clearList(){
-        mData.clear();
+        if (null != mData){
+            mData.clear();
+        }
     }
 
     private class ItemViewHolder extends RecyclerView.ViewHolder{

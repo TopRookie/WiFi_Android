@@ -1,10 +1,12 @@
 package com.wanjie.wifidemo;
 
+import android.Manifest;
 import android.content.IntentFilter;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -14,8 +16,12 @@ import android.widget.Switch;
 
 import java.util.List;
 
+import permissions.dispatcher.NeedsPermission;
+import permissions.dispatcher.RuntimePermissions;
+
+@RuntimePermissions
 public class MainActivity extends AppCompatActivity implements CompoundButton.OnCheckedChangeListener {
-    private static final String TAG = "liu";
+    private static final String TAG = "MainActivity";
 
     private Switch wifiOpenOrClose;
     private RecyclerView recyclerView;
@@ -28,15 +34,38 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
 
     private boolean isOk2GetResult = false;
 
+    /**
+     * 需要定位权限（待处理）
+     */
+    @NeedsPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+    void needLocation() {
+    }
+
+    /**
+     * 获得定位权限回调（待处理）
+     *
+     * @param requestCode
+     * @param permissions
+     * @param grantResults
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        MainActivityPermissionsDispatcher.onRequestPermissionsResult(this, requestCode, grantResults);
+    }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        //注册广播接收者
-        registerBroadcastReceiver();
+
         initView();
         initData();
+        //注册广播接收者
+        registerBroadcastReceiver();
+        //动态授权
+        MainActivityPermissionsDispatcher.needLocationWithPermissionCheck(this);
     }
 
     private void initView() {
@@ -46,7 +75,6 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
         mAdapter = new WifiListAdapter(this);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(mAdapter);
-
     }
 
     private void initData() {
@@ -146,5 +174,4 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
     private void unregisterReceiver(){
         unregisterReceiver(wifiReceiver);
     }
-
 }
