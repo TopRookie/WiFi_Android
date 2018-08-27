@@ -1,4 +1,4 @@
-package com.wanjie.wifidemo;
+package com.hehongdan.wifi_android;
 
 import android.content.Context;
 import android.net.wifi.ScanResult;
@@ -7,6 +7,7 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -25,7 +26,7 @@ public class WifiController {
 
     private WifiController(Context context) {
         //拿到wifi管理器
-        mWifiManager = (WifiManager) context.getSystemService(context.WIFI_SERVICE);
+        mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
         this.mContext = context;
     }
 
@@ -111,13 +112,73 @@ public class WifiController {
     private WifiConfiguration isExists(WifiConfiguration config) {
         List<WifiConfiguration> existingConfigs = mWifiManager.getConfiguredNetworks();
         for (WifiConfiguration existingConfig : existingConfigs) {
-            Log.i(TAG, "系统保存配置的 SSID : " + existingConfig.SSID + "  networkId : " + existingConfig.networkId);
+            Log.i(TAG, "系统保存配置SSID=" + existingConfig.SSID + "，网络ID=" + existingConfig.networkId);
             if (existingConfig.SSID.equals(config.SSID)) {
                 config.networkId = existingConfig.networkId;
                 return config;
             }
         }
         return null;
+    }
+
+    /**
+     * 根据SSID判断并返回系统操作的WiFi配置
+     *
+     * @param ssid  WiFi名称
+     * @return      系统操作的配置
+     */
+    public WifiConfiguration isExsits(String ssid) {
+        List<WifiConfiguration> existingConfigs = mWifiManager.getConfiguredNetworks();
+        for (WifiConfiguration existingConfig : existingConfigs) {
+            if (existingConfig.SSID.equals(appendSsid(ssid))) {
+                return existingConfig;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 拼接带"\"SSID
+     *
+     * @param ssid
+     * @return
+     */
+    public static String appendSsid(String ssid) {
+        return "\"" + ssid + "\"";
+    }
+
+    /**
+     * 根据SSID获取配置ID
+     *
+     * @param ssid  WiFi名称
+     * @return      返回对应的网络ID（-1没在系统保存中找到）
+     */
+    public int getNetworkId(final String ssid){
+        //获取配置列表
+        List<WifiConfiguration> wifiConfigurations = mWifiManager.getConfiguredNetworks();
+        //网络ID
+        int networkId = -1;
+        //配置列表不为空
+        if (null != wifiConfigurations){
+            for (WifiConfiguration wifiConfiguration : wifiConfigurations) {
+                //拿到指定的WiFi配置
+                if (wifiConfiguration.SSID.equals(appendSsid(ssid))){
+                    networkId = wifiConfiguration.networkId;
+                    return networkId;
+                }
+            }
+        }
+        return networkId;
+    }
+
+    /**
+     * 通过网络ID连接系统存在的WiFi
+     *
+     * @param ssid  WiFi名称
+     * @return
+     */
+    public boolean connect(final String ssid) {
+        return mWifiManager.enableNetwork(getNetworkId(ssid), true);
     }
 
     /**
@@ -168,80 +229,6 @@ public class WifiController {
         // 通过NetworkID连接到WIFI
         connectionWifiByNetworkId(SSID, netId, listener);
     }
-
-
-    /**
-     * 这个枚举用于表示网络加密模式
-     */
-    public enum SecurityMode {
-        OPEN, WEP, WPA, WPA2
-    }
-
-
-    /**
-     * 获取WIFI的加密方式
-     *
-     * @param scanResult WIFI信息
-     * @return 加密方式
-     */
-    public SecurityMode getSecurityMode(@NonNull ScanResult scanResult) {
-        String capabilities = scanResult.capabilities;
-        if (capabilities.contains("WPA")) {
-            return SecurityMode.WPA;
-        } else if (capabilities.contains("WEP")) {
-            return SecurityMode.WEP;
-        } else if (capabilities.contains("WPA2")) {
-            return SecurityMode.WPA2;
-        } else {
-            // 没有加密
-            return SecurityMode.OPEN;
-        }
-    }
-
-
-    /**
-     * 生成新的配置信息 用于连接Wifi
-     *
-     * @param SSID     WIFI名字
-     * @param password WIFI密码
-     * @param mode     WIFI加密类型
-     * @return 配置
-     */
-    private WifiConfiguration createWifiConfiguration(String SSID, String password, SecurityMode mode) {
-        WifiConfiguration config = new WifiConfiguration();
-        config.allowedAuthAlgorithms.clear();
-        config.allowedGroupCiphers.clear();
-        config.allowedKeyManagement.clear();
-        config.allowedPairwiseCiphers.clear();
-        config.allowedProtocols.clear();
-        config.SSID = "\"" + SSID + "\"";
-        if (mode == SecurityMode.OPEN) {
-            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
-        } else if (mode == SecurityMode.WEP) {
-            config.hiddenSSID = true;
-            config.wepKeys[0] = "\"" + password + "\"";
-            config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED);
-            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP);
-            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP);
-            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP40);
-            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP104);
-            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
-            config.wepTxKeyIndex = 0;
-        } else if (mode == SecurityMode.WPA) {
-            config.preSharedKey = "\"" + password + "\"";
-            config.hiddenSSID = true;
-            config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN);
-            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP);
-            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
-            config.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP);
-            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP);
-            config.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP);
-            config.status = WifiConfiguration.Status.ENABLED;
-        }
-        return config;
-    }
-
-
     /**
      * 通过NetworkId连接到WIFI （配置过的网络可以直接获取到NetworkID，从而不用再输入密码）
      *
@@ -303,6 +290,94 @@ public class WifiController {
         }
     }
 
+    /**
+     * 连接已经存在的WiFi（带密码）
+     *
+     * @param config    网络配置信息
+     */
+    public void connect(WifiConfiguration config) {
+        int networkId = mWifiManager.addNetwork(config);
+        mWifiManager.enableNetwork(networkId, true);
+    }
+
+
+    /**
+     * 这个枚举用于表示网络加密模式
+     */
+    public enum SecurityMode {
+        OPEN, WEP, WPA, WPA2
+    }
+
+
+    /**
+     * 获取WIFI的加密方式
+     *
+     * @param scanResult    WIFI信息
+     * @return              加密方式（null=不确定）
+     */
+    public SecurityMode getSecurityMode(@NonNull ScanResult scanResult) {
+        String capabilities = scanResult.capabilities;
+        if (TextUtils.isEmpty(capabilities)) {
+            return null;
+        }
+        //不区分大小写//capabilities.equalsIgnoreCase();
+        //判断是否包含
+        if (capabilities.contains("WPA") || capabilities.contains("wpa")) {
+            return SecurityMode.WPA;
+        } else if (capabilities.contains("WEP") || capabilities.contains("wep")) {
+            return SecurityMode.WEP;
+        } else if (capabilities.contains("WPA2") || capabilities.contains("wpa2")) {
+            return SecurityMode.WPA2;
+        } else {
+            // 没有加密
+            return SecurityMode.OPEN;
+        }
+    }
+
+
+    /**
+     * 生成新的配置信息 用于连接Wifi
+     *
+     * @param SSID     WIFI名字
+     * @param password WIFI密码
+     * @param mode     WIFI加密类型
+     * @return 配置
+     */
+    public WifiConfiguration createWifiConfiguration(String SSID, String password, SecurityMode mode) {
+        WifiConfiguration config = new WifiConfiguration();
+        config.allowedAuthAlgorithms.clear();
+        config.allowedGroupCiphers.clear();
+        config.allowedKeyManagement.clear();
+        config.allowedPairwiseCiphers.clear();
+        config.allowedProtocols.clear();
+        config.SSID = "\"" + SSID + "\"";
+
+        if (mode == SecurityMode.OPEN) {
+            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+        } else if (mode == SecurityMode.WEP) {
+            config.hiddenSSID = true;
+            config.wepKeys[0] = "\"" + password + "\"";
+            config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED);
+            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP);
+            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP);
+            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP40);
+            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP104);
+            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+            config.wepTxKeyIndex = 0;
+        } else if (mode == SecurityMode.WPA) {
+            config.preSharedKey = "\"" + password + "\"";
+            config.hiddenSSID = true;
+            config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN);
+            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP);
+            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+            config.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP);
+            // config.allowedProtocols.set(WifiConfiguration.Protocol.WPA);
+            config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP);
+            config.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP);
+            config.status = WifiConfiguration.Status.ENABLED;
+        }
+        return config;
+    }
 
     /**
      * @param ssid 可以理解为是wifi的名字
@@ -312,7 +387,7 @@ public class WifiController {
 
         List<WifiConfiguration> configuredNetworks = mWifiManager.getConfiguredNetworks();
         for (WifiConfiguration existingConfig : configuredNetworks) {
-            Log.i(TAG, "系统保存配置的 SSID : " + ssid);
+            Log.i(TAG, "根据SSID获取系统保存配置=" + ssid);
             if (existingConfig.SSID.equals(ssid)) {
                 return existingConfig;
             }

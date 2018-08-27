@@ -1,4 +1,4 @@
-package com.wanjie.wifidemo;
+package com.hehongdan.wifi_android.test;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

@@ -1,4 +1,4 @@
-package com.wanjie.wifidemo;
+package com.hehongdan.wifi_android;
 
 import android.net.wifi.p2p.WifiP2pManager.ActionListener;
 
