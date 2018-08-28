@@ -4,7 +4,7 @@ android {
     compileSdkVersion 28
     buildToolsVersion "25.0.0"
     defaultConfig {
-        applicationId "com.wanjie.wifidemo"
+        applicationId 'com.hehongdan.wifi_android'
         minSdkVersion 16
         targetSdkVersion 25
         versionCode 1
@@ -17,6 +17,8 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    productFlavors {
+    }
 }
 
 dependencies {
@@ -27,7 +29,6 @@ dependencies {
     compile 'com.android.support:appcompat-v7:25.3.1'
     testCompile 'junit:junit:4.12'
     compile 'com.android.support:recyclerview-v7:25.3.1'
-
     //注解处理器（6.0动态权限）
     compile 'com.github.hotchemi:permissionsdispatcher:3.0.1'
     //注解处理器（6.0动态权限）

@@ -4,9 +4,9 @@ import android.Manifest;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.IntentFilter;
+import android.net.ConnectivityManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -22,8 +22,10 @@ import android.widget.EditText;
 import android.widget.Switch;
 import android.widget.Toast;
 
-import com.hehongdan.wifi_android.test.WifiReceiver;
-import com.hehongdan.wifi_android.test.WifiReceiverActionListener;
+import com.hehongdan.wifi_android.test.HHDWifiReceiverActionListener;
+import com.hehongdan.wifi_android.test.MyLogger;
+import com.hehongdan.wifi_android.test.NetWorkStateReceiver;
+import com.hehongdan.wifi_android.test.WifiStateReceiver;
 
 import java.util.List;
 
@@ -35,84 +37,56 @@ import permissions.dispatcher.RuntimePermissions;
  */
 @RuntimePermissions
 public class MainActivity extends AppCompatActivity implements OnCheckedChangeListener {
-
-    /** WiFi状态监听器 */
-    private WifiReceiverActionListener listener = new WifiReceiverActionListener() {
+    /**
+     * WiFi状态监听
+     */
+    private HHDWifiReceiverActionListener HHDlistener = new HHDWifiReceiverActionListener() {
         @Override
-        public void onWifiOpened() {
-            Log.v(TAG, "WiFi已打开...");
-            //去扫描WIFI
-            mWifiController.scanWifiAround();
-        }
+        public void onCurrentState(State state) {
+            switch (state){
+                case CONNECTED:
+                    HHDLog.e("已经连接，调用一次");
+                    break;
+                case SCAN_RESULT:
+                    Log.v(TAG, "WiFi扫描返回...");
+                    //在这里处理wifi的结果
+                    mWifiScanResult = mWifiController.getWifiScanResult();
+                    //扫描到结果以后,就开始更新界面
+                    if (null != mWifiScanResult) {
+                        Toast.makeText(MainActivity.this,"WiFi扫描返回结果="+mWifiScanResult.size(),Toast.LENGTH_SHORT).show();
+                        Log.v(TAG, "WiFi扫描返回个数=" + mWifiScanResult.size());
+                        if (null != mHHDAdapter){
+                            mHHDAdapter.setListData(mWifiScanResult);
+                            mHHDAdapter.notifyDataSetChanged();
+                        }
+                    } else {
+                        Log.v(TAG, "WiFi扫描返回=null");
+                    }
+                    break;
 
-        @Override
-        public void onWifiOpening() {
-            Log.v(TAG, "WiFi打开中...");
-        }
-
-        @Override
-        public void onWifiClosed() {
-            Log.v(TAG, "WiFi已关闭...");
-            //清空集合
-            //mAdapter.clearList();
-            //mAdapter.notifyDataSetChanged();
-            mHHDAdapter.clearListData();
-            mHHDAdapter.notifyDataSetChanged();
-        }
-
-        @Override
-        public void onWifiClosing() {
-            Log.v(TAG, "WiFi关闭中...");
-        }
-
-        @Override
-        public void onWifiScanResultBack() {
-            Log.v(TAG, "WiFi扫描返回...");
-            //在这里处理wifi的结果
-            mWifiScanResult = mWifiController.getWifiScanResult();
-            //扫描到结果以后,就开始更新界面
-            if (null != mWifiScanResult) {
-                Log.v(TAG, "WiFi扫描返回个数=" + mWifiScanResult.size());
-                /*if (mAdapter != null) {
-                    mAdapter.setData(mWifiScanResult);
-                    mAdapter.notifyDataSetChanged();
-                }*/
-                if (null != mHHDAdapter){
-                    mHHDAdapter.setListData(mWifiScanResult);
-                    mHHDAdapter.notifyDataSetChanged();
-                }
-            } else {
-                Log.v(TAG, "WiFi扫描返回=null");
+                default:
+                    break;
             }
-        }
-
-        @Override
-        public void onWifiConnected(WifiInfo wifiInfo) {
-            Log.e(TAG, "WiFi已连接（测试连接两次）...");
         }
     };
 
+    private MyLogger HHDLog = MyLogger.HHDLog();
     private static final String TAG = "MainActivity";
-
     /** WiFi控制器 */
     private WifiController mWifiController;
-    /** WiFi状态监听器 */
-    private WifiReceiver wifiReceiver;
-
-
+    /** WiFi状态广播接收器 */
+    private WifiStateReceiver HHDReceiver;
     /** 扫描结果视图列表 */
     private RecyclerView recyclerView;
     /** 扫描结果数据列表 */
     private List<ScanResult> mWifiScanResult;
     /** 扫描结果适配器 */
     private WifiListAdapter mHHDAdapter;
-    //private WifiListAdapter mAdapter;
-    //private WifiListAdapter.OnItemClickListener itemListener;
-
     /** WiFi开关 */
     private Switch wifiOpenOrClose;
-
+    /** 上下文 */
     private Context mContext;
+
 
     /**
      * 需要定位权限（待处理）
@@ -188,7 +162,7 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
                             public void onClick(DialogInterface dialogInterface, int i) {
                                 String password = editText.getText().toString().trim();
                                 Toast.makeText(mContext, "实现连接，" + editText.getText(), Toast.LENGTH_LONG).show();
-                                Log.e(TAG, "连接WiFi的加密方式=" + mSecurityMode);
+                                Log.v(TAG, "连接WiFi的加密方式=" + mSecurityMode);
                                 mWifiController.connect(mWifiController.createWifiConfiguration(scanResult.SSID, password, mSecurityMode));
                             }
                         })
@@ -262,23 +236,29 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
      * 3 wifi连接状态改变的广播
      * <p>
      */
-    private int count = 0;
     private void registerBroadcastReceiver() {
         IntentFilter filter = new IntentFilter();
         //设置意图过滤
         filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
         filter.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
         filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
+        //网络连接发生变化
+        filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+        //网络连接发生变化
+        //RSSI（信号强度）已经改变
+        filter.addAction(WifiManager.RSSI_CHANGED_ACTION);
 
-        Log.e(TAG, "测试次数注册广播次数=" + (++count));
-        wifiReceiver = new WifiReceiver(listener);
-        registerReceiver(wifiReceiver, filter);
+        //wifiReceiver = new WifiReceiver(listener);
+        HHDReceiver = new WifiStateReceiver(HHDlistener, true);
+        NetWorkStateReceiver netWorkStateReceiver = new NetWorkStateReceiver();
+
+        registerReceiver(HHDReceiver, filter);
     }
 
     /**
      * 取消注册广播接收者
      */
     private void unregisterReceiver() {
-        unregisterReceiver(wifiReceiver);
+        unregisterReceiver(HHDReceiver);
     }
 }

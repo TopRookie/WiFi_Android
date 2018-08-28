@@ -81,7 +81,7 @@ public class WifiListAdapter extends RecyclerView.Adapter<WifiListAdapter.ViewHo
     @Override
     public void onBindViewHolder(final ViewHolder holder, int position) {
         final int lPosition = holder.getLayoutPosition();
-        Log.e(TAG, "数据长度=" + mList.size()+"，原始下标="+position+"，处理下标="+lPosition);
+        Log.v(TAG, "数据长度=" + mList.size()+"，原始下标="+position+"，处理下标="+lPosition);
         if (null != mList && mList.size() > 0) {
             holder.ssid.setText(mList.get(lPosition).SSID);
             holder.bSsid.setText(mList.get(lPosition).BSSID);
