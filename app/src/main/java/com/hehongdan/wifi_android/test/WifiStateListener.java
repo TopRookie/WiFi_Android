@@ -1,14 +1,14 @@
 package com.hehongdan.wifi_android.test;
 
 /**
- * 类描述：
+ * 类描述：WiFi状态的监听器
  *
  * @author hehongdan
  * @version v2018/8/27
  * @date 2018/8/27
  */
 
-public interface HHDWifiReceiverActionListener {
+public interface WifiStateListener {
 
     /**
      * WiFi的状态
@@ -37,14 +37,14 @@ public interface HHDWifiReceiverActionListener {
         /** 已经扫描 */
         WIFI_STATE_ENABLED,
 
+        /** 网络连接建立，执行身份验证 */
+        AUTHENTICATING,
+        /** 等待DHCP服务器的响应，以便分配IP地址信息 */
+        OBTAINING_IPADDR,
         /** 准备开始数据连接设置 */
          DLE,
-         /** 搜索一个可用的访问点 */
+        /** 搜索一个可用的访问点 */
          SCANNING,
-         /** 网络连接建立，执行身份验证 */
-         AUTHENTICATING,
-         /** 等待DHCP服务器的响应，以便分配IP地址信息 */
-         OBTAINING_IPADDR,
          /** 对这个网络的访问被阻塞 */
          BLOCKED,
          /** 链接的连通性很差 */

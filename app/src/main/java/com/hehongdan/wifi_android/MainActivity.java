@@ -6,7 +6,6 @@ import android.content.DialogInterface;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.wifi.ScanResult;
-import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -16,15 +15,15 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.CompoundButton.OnCheckedChangeListener;
 import android.widget.EditText;
-import android.widget.Switch;
+import android.widget.TextView;
 import android.widget.Toast;
 
-import com.hehongdan.wifi_android.test.HHDWifiReceiverActionListener;
-import com.hehongdan.wifi_android.test.MyLogger;
-import com.hehongdan.wifi_android.test.NetWorkStateReceiver;
+import com.hehongdan.wifi_android.test.WifiController;
+import com.hehongdan.wifi_android.test.WifiStateListener;
 import com.hehongdan.wifi_android.test.WifiStateReceiver;
 
 import java.util.List;
@@ -36,26 +35,46 @@ import permissions.dispatcher.RuntimePermissions;
  *
  */
 @RuntimePermissions
-public class MainActivity extends AppCompatActivity implements OnCheckedChangeListener {
+public class MainActivity extends AppCompatActivity implements OnCheckedChangeListener,View.OnClickListener {
     /**
      * WiFi状态监听
      */
-    private HHDWifiReceiverActionListener HHDlistener = new HHDWifiReceiverActionListener() {
+    private WifiStateListener HHDlistener = new WifiStateListener() {
         @Override
         public void onCurrentState(State state) {
             switch (state){
+                case OPENED:
+                    HHDLog.v("WiFi已打开");
+                    tv_state.setText("WiFi已打开");
+                    break;
+                case CLOSED:
+                    HHDLog.v("WiFi已关掉");
+                    tv_state.setText("WiFi已关掉");
+                    break;
+                case CONNECTING:
+                    HHDLog.v("连接中...");
+                    tv_state.setText("连接中...");
+                    break;
+                case AUTHENTICATING:
+                    HHDLog.v("验证中...");
+                    tv_state.setText("验证中...");
+                    break;
+                case OBTAINING_IPADDR:
+                    HHDLog.v("获取IP中...");
+                    tv_state.setText("获取IP中...");
+                    break;
                 case CONNECTED:
-                    HHDLog.e("已经连接，调用一次");
+                    HHDLog.e("已经连接（调用一次）=" + mWifiController.getCurrentSsid());
+                    tv_state.setText("成功连接：" + mWifiController.getCurrentSsid());
                     break;
                 case SCAN_RESULT:
-                    Log.v(TAG, "WiFi扫描返回...");
+                    HHDLog.v("WiFi扫描返回...");
                     //在这里处理wifi的结果
                     mWifiScanResult = mWifiController.getWifiScanResult();
                     //扫描到结果以后,就开始更新界面
                     if (null != mWifiScanResult) {
-                        Toast.makeText(MainActivity.this,"WiFi扫描返回结果="+mWifiScanResult.size(),Toast.LENGTH_SHORT).show();
-                        Log.v(TAG, "WiFi扫描返回个数=" + mWifiScanResult.size());
-                        if (null != mHHDAdapter){
+                        Toast.makeText(MainActivity.this, "WiFi扫描返回结果=" + mWifiScanResult.size(), Toast.LENGTH_SHORT).show();
+                        if (null != mHHDAdapter) {
                             mHHDAdapter.setListData(mWifiScanResult);
                             mHHDAdapter.notifyDataSetChanged();
                         }
@@ -75,15 +94,25 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
     /** WiFi控制器 */
     private WifiController mWifiController;
     /** WiFi状态广播接收器 */
-    private WifiStateReceiver HHDReceiver;
+    private WifiStateReceiver mWifiStateReceiver;
     /** 扫描结果视图列表 */
-    private RecyclerView recyclerView;
+    private RecyclerView mRecyclerView;
     /** 扫描结果数据列表 */
     private List<ScanResult> mWifiScanResult;
     /** 扫描结果适配器 */
     private WifiListAdapter mHHDAdapter;
     /** WiFi开关 */
-    private Switch wifiOpenOrClose;
+    //private Switch wifiOpenOrClose;
+    /** WiFi状态 */
+    private TextView tv_state;
+    /** WiFi打开 */
+    private Button btn_open;
+    /** WiFi关闭 */
+    private Button btn_close;
+    /** WiFi连接 */
+    private Button btn_connect;
+    /** WiFi断开 */
+    private Button btn_disconnect;
     /** 上下文 */
     private Context mContext;
 
@@ -117,8 +146,6 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
         mContext = this;
         initView();
         initData();
-        //注册广播接收者
-        registerBroadcastReceiver();
         //动态授权
         MainActivityPermissionsDispatcher.needLocationWithPermissionCheck(this);
     }
@@ -132,49 +159,25 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
         final String ssid = scanResult.SSID;
         final EditText editText = new EditText(mContext);
         editText.setHint("请输入密码");
-
-        final WifiController.SecurityMode mSecurityMode = mWifiController.getSecurityMode(scanResult);
-        final WifiConfiguration mWifiConfiguration = mWifiController.isExsits(scanResult.SSID);
-        if (null == mWifiConfiguration) {
-            if (mSecurityMode == WifiController.SecurityMode.OPEN){
-                mWifiController.connectionWifiByPassword(scanResult, null, new WifiController.OnWifiConnectListener() {
-                    @Override
-                    public void onStart(String SSID) {
-
-                    }
-
-                    @Override
-                    public void onFinish() {
-
-                    }
-
-                    @Override
-                    public void onFailure(String SSID) {
-
-                    }
-                });
-            } else if (mSecurityMode == WifiController.SecurityMode.WPA){
-                new AlertDialog.Builder(mContext)
-                        .setTitle(ssid)
-                        .setView(editText)
-                        .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialogInterface, int i) {
-                                String password = editText.getText().toString().trim();
-                                Toast.makeText(mContext, "实现连接，" + editText.getText(), Toast.LENGTH_LONG).show();
-                                Log.v(TAG, "连接WiFi的加密方式=" + mSecurityMode);
-                                mWifiController.connect(mWifiController.createWifiConfiguration(scanResult.SSID, password, mSecurityMode));
-                            }
-                        })
-                        .setNegativeButton("取消", null)
-                        .show();
+        mWifiController.connect(scanResult, new WifiController.INeedPassword() {
+            @Override
+            public void isNeed(boolean need) {
+                if (need) {
+                    new AlertDialog.Builder(mContext)
+                            .setTitle(ssid)
+                            .setView(editText)
+                            .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialogInterface, int i) {
+                                    String password = editText.getText().toString().trim();
+                                    mWifiController.connectByPassword(scanResult, password);
+                                }
+                            })
+                            .setNegativeButton("取消", null)
+                            .show();
+                }
             }
-
-        }else {
-            //已经连接过
-            boolean isExist = mWifiController.connect(ssid);
-        }
-
+        });
     }
 
 
@@ -182,14 +185,23 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
      * 初始化视图
      */
     private void initView() {
-        wifiOpenOrClose = (Switch) findViewById(R.id.wifiOpenOrClose);
-        wifiOpenOrClose.setOnCheckedChangeListener(this);
-        recyclerView = (RecyclerView) findViewById(R.id.recyclerView);
+        tv_state = (TextView) findViewById(R.id.tv_state);
+        btn_open = (Button) findViewById(R.id.btn_open);
+        btn_open.setOnClickListener(this);
+        btn_close = (Button) findViewById(R.id.btn_close);
+        btn_close.setOnClickListener(this);
+        btn_connect = (Button) findViewById(R.id.btn_connect);
+        btn_connect.setOnClickListener(this);
+        btn_disconnect = (Button) findViewById(R.id.btn_disconnect);
+        btn_disconnect.setOnClickListener(this);
+        //wifiOpenOrClose = (Switch) findViewById(R.id.wifiOpenOrClose);
+        //wifiOpenOrClose.setOnCheckedChangeListener(this);
+        mRecyclerView = (RecyclerView) findViewById(R.id.recyclerView);
         //mAdapter = new WifiListAdapter(this, newListener());
         mHHDAdapter = new WifiListAdapter(this,mWifiScanResult);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         //recyclerView.setAdapter(mAdapter);
-        recyclerView.setAdapter(mHHDAdapter);
+        mRecyclerView.setAdapter(mHHDAdapter);
 
         mHHDAdapter.setOnItemClickListener(new WifiListAdapter.OnItemClickListener() {
             @Override
@@ -204,23 +216,57 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
         });
     }
 
+    @Override
+    public void onClick(View view) {
+        int viewId = view.getId();
+        switch (viewId){
+            case R.id.btn_open:
+                mWifiController.openWifi();
+                break;
+            case R.id.btn_close:
+                mWifiController.closeWifi();
+                break;
+            case R.id.btn_connect:
+                Toast.makeText(mContext,"选择底部列表进行连接",Toast.LENGTH_LONG).show();
+                break;
+
+            case R.id.btn_scan:
+                mWifiController.scanWifiAround();
+                break;
+            case R.id.btn_disconnect:
+                Toast.makeText(mContext,"正在断开...",Toast.LENGTH_LONG).show();
+                mWifiController.disconnectCurrent();
+                break;
+
+            default:
+                break;
+        }
+    }
+
     /**
      * 初始化数据
      */
     private void initData() {
+        mWifiStateReceiver = new WifiStateReceiver(HHDlistener);
         mWifiController = WifiController.getInstant(getApplicationContext());
-
-        if (mWifiController.isWifiEnable()) {
-            wifiOpenOrClose.setChecked(true);
+        if (mWifiController.isWifiEnabled()) {
+            //wifiOpenOrClose.setChecked(true);
             mWifiController.scanWifiAround();
         }
     }
 
     @Override
-    protected void onDestroy() {
+    protected void onResume() {
+        super.onResume();
+        //注册广播接收者
+        registerBroadcastReceiver();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
         //注销广播接收者
         unregisterReceiver();
-        super.onDestroy();
     }
 
     @Override
@@ -248,17 +294,14 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
         //RSSI（信号强度）已经改变
         filter.addAction(WifiManager.RSSI_CHANGED_ACTION);
 
-        //wifiReceiver = new WifiReceiver(listener);
-        HHDReceiver = new WifiStateReceiver(HHDlistener, true);
-        NetWorkStateReceiver netWorkStateReceiver = new NetWorkStateReceiver();
-
-        registerReceiver(HHDReceiver, filter);
+        registerReceiver(mWifiStateReceiver, filter);
     }
 
     /**
      * 取消注册广播接收者
      */
     private void unregisterReceiver() {
-        unregisterReceiver(HHDReceiver);
+        unregisterReceiver(mWifiStateReceiver);
     }
+
 }

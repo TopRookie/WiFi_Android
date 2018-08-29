@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    tools:context="com.wanjie.wifidemo.com.hehongdan.wifidemo.MainActivity">
+    tools:context="com.hehongdan.wifi_android.MainActivity">
 
     <LinearLayout
         android:orientation="horizontal"
@@ -38,10 +38,11 @@
         />
 
     <TextView
-        android:id="@+id/text_state"
+        android:id="@+id/tv_state"
         android:layout_width="wrap_content"
         android:paddingLeft="20dp"
         android:text="WiFi状态"
+        android:textStyle="bold"
         android:textColor="@color/colorAccent"
         android:layout_height="50dp"
         android:gravity="center"
@@ -61,66 +62,76 @@
 
         <LinearLayout
             android:layout_width="0dp"
-            android:layout_weight="1"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:gravity="center"
             android:orientation="vertical">
+
             <Button
-                android:id="@+id/button11"
+                android:id="@+id/btn_open"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="打开"/>
+
             <Button
-                android:id="@+id/button12"
+                android:id="@+id/btn_close"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="关闭"/>
+
             <Button
-                android:id="@+id/button13"
+                android:id="@+id/btn_scan"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="断开"/>
+                android:text="搜索"/>
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="0dp"
-            android:layout_weight="1"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:gravity="center"
             android:orientation="vertical">
+
             <Button
-                android:id="@+id/button21"
+                android:id="@+id/btn_connect"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="连接"/>
+
             <Button
-                android:id="@+id/button22"
+                android:id="@+id/btn_disconnect"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="添加"/>
+                android:text="断开"/>
+
             <Button
-                android:id="@+id/button23"
+                android:id="@+id/btn_add"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Button"/>
+                android:text="添加"
+                />
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="0dp"
-            android:layout_weight="1"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:gravity="center"
             android:orientation="vertical">
+
             <Button
                 android:id="@+id/button31"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Button"/>
+
             <Button
                 android:id="@+id/button32"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Button"/>
+
             <Button
                 android:id="@+id/button33"
                 android:layout_width="wrap_content"

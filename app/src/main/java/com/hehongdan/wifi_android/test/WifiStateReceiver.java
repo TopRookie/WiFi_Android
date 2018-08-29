@@ -7,46 +7,36 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.util.Log;
 
+import com.hehongdan.wifi_android.MyLogger;
+
 /**
+ * 类描述：WiFi状态的广播接收器
  *
- * Created by MYL on 2018/8/24.
+ * @author hehongdan
+ * @version v2018/8/27
+ * @date 2018/8/27
  */
 
 public class WifiStateReceiver extends BroadcastReceiver {
     
     private MyLogger HHDLog = MyLogger.HHDLog();
     private final String TAG = "HHDWifiStateReceiver";
-    private final HHDWifiReceiverActionListener mListener;
+    /** WiFi状态监听器 */
+    private final WifiStateListener mListener;
     /** 缓存网络状态（连接、连接中、断开、断开中、暂停、未知） */
     private NetworkInfo.State connectState;
     /** 缓存网络类型（WIFI、MOBILE...） */
     private int networkType;
-    /** 是否启用去重功能（避免广播多次调用） */
-    private boolean isRemoveDuplicates;
-    /** 临时屏蔽广播 */
-    private boolean temporaryShield = true;
 
     /**
      * 构造方法
      *
      * @param mListener 广播接收器的回调监听器
      */
-    public WifiStateReceiver(HHDWifiReceiverActionListener mListener) {
+    public WifiStateReceiver(WifiStateListener mListener) {
         this.mListener = mListener;
-    }
-
-    /**
-     * 构造方法
-     *
-     * @param mListener         广播接收器的回调监听器
-     * @param removeDuplicates  是否去重复广播
-     */
-    public WifiStateReceiver(HHDWifiReceiverActionListener mListener, @NonNull boolean removeDuplicates) {
-        this.mListener = mListener;
-        this.isRemoveDuplicates = removeDuplicates;
     }
 
     /**
@@ -60,7 +50,7 @@ public class WifiStateReceiver extends BroadcastReceiver {
         //扫描结果
         if (WifiManager.SCAN_RESULTS_AVAILABLE_ACTION.equals(action)){
             HHDLog.v("WiFi扫描结果");
-            mListener.onCurrentState(HHDWifiReceiverActionListener.State.SCAN_RESULT);
+            mListener.onCurrentState(WifiStateListener.State.SCAN_RESULT);
             //TODO 返回wifiManager.getScanResults();addAll(scanResults)
             //WiFi状态发生改变
         } else if (WifiManager.WIFI_STATE_CHANGED_ACTION.equals(action)){
@@ -79,12 +69,12 @@ public class WifiStateReceiver extends BroadcastReceiver {
                     //通知扫描
                     //wifiManager.startScan();
                     HHDLog.v("WiFi状态改变，已经启用（打开）");
-                    mListener.onCurrentState(HHDWifiReceiverActionListener.State.OPENED);
+                    mListener.onCurrentState(WifiStateListener.State.OPENED);
                     break;
                 case WifiManager.WIFI_STATE_DISABLED:
                     //wifi关闭发出的广播
                     HHDLog.v("WiFi状态改变，已经禁用（关闭）");
-                    mListener.onCurrentState(HHDWifiReceiverActionListener.State.CLOSED);
+                    mListener.onCurrentState(WifiStateListener.State.CLOSED);
                     break;
 
                 default:
@@ -104,62 +94,27 @@ public class WifiStateReceiver extends BroadcastReceiver {
              */
             if (NetworkInfo.State.DISCONNECTED.equals(info_)){
                 HHDLog.v("网络状态改变，已经无连接--------------------------------------------------");
-                mListener.onCurrentState(HHDWifiReceiverActionListener.State.DISCONNECTED);
+                mListener.onCurrentState(WifiStateListener.State.DISCONNECTED);
             }else if (NetworkInfo.State.CONNECTED.equals(info_.getState())){
-                HHDLog.e("网络状态改变，已经连接="+"WiFi名称");
-                //mListener.onConnected();
-                if (isRemoveDuplicates) {
-                    if (temporaryShield) {
-                        mListener.onCurrentState(HHDWifiReceiverActionListener.State.CONNECTED);
-                        temporaryShield = false;
-                    }
-                } else {
-                    mListener.onCurrentState(HHDWifiReceiverActionListener.State.CONNECTED);
-                }
+                //HHDLog.e("网络状态改变，已经连接="+"WiFi名称");
+                //TODO
+                //mListener.onCurrentState(WifiStateListener.State.CONNECTED);
                 //粗粒度的网络状态（以上）
             } else {
                 //细粒度的网络状态（以下）
-                /**
-                 /** 准备开始数据连接设置。* /
-                 DLE,空闲,
-                 /** 搜索一个可用的访问点。* /
-                 SCANNING,扫描,
-                 /** 当前建立数据连接。* /
-                 CONNECTING,连接,
-                 /** 网络连接建立，执行身份验证。* /
-                 AUTHENTICATING,验证,
-                 /** 等待DHCP服务器的响应，以便分配IP地址信息。* /
-                 OBTAINING_IPADDR,
-                 /** IP流量应该是可用的。* /
-                 CONNECTED,连接,
-                 /** IP流量被暂停* /
-                 SUSPENDED,暂停,
-                 /** 目前正在拆除数据连接。* /
-                 DISCONNECTING,断开,
-                 /** IP流量不可用。* /
-                 DISCONNECTED,断开连接,
-                 /** 尝试连接失败。* /
-                 FAILED,失败了,
-                 /** 对这个网络的访问被阻塞（已阻止）* /
-                 BLOCKED,阻塞,
-                 /** 链接的连通性很差。* /
-                 VERIFYING_POOR_LINK,
-                 /** 检查网络是否是一个被捕获的门户（判断是否需要浏览器二次登录）* /
-                 CAPTIVE_PORTAL_CHECK
-                 */
                 NetworkInfo.DetailedState state = info_.getDetailedState();
                 if (NetworkInfo.DetailedState.CONNECTING == state){
                     HHDLog.v("网络状态改变（细粒度），连接中...");
-                    mListener.onCurrentState(HHDWifiReceiverActionListener.State.CONNECTING);
+                    mListener.onCurrentState(WifiStateListener.State.CONNECTING);
                 } else if (NetworkInfo.DetailedState.AUTHENTICATING == state){
                     HHDLog.v("网络状态改变（细粒度），验证中...");
-                    mListener.onCurrentState(HHDWifiReceiverActionListener.State.AUTHENTICATING);
+                    mListener.onCurrentState(WifiStateListener.State.AUTHENTICATING);
                 }else if (NetworkInfo.DetailedState.OBTAINING_IPADDR == state){
                     HHDLog.v("网络状态改变（细粒度），获取IP中...");
-                    mListener.onCurrentState(HHDWifiReceiverActionListener.State.OBTAINING_IPADDR);
+                    mListener.onCurrentState(WifiStateListener.State.OBTAINING_IPADDR);
                 } else if (NetworkInfo.DetailedState.FAILED == state){
                     HHDLog.v("网络状态改变（细粒度），网络失败");
-                    mListener.onCurrentState(HHDWifiReceiverActionListener.State.FAILED);
+                    mListener.onCurrentState(WifiStateListener.State.FAILED);
                 }
             }
         }
@@ -214,9 +169,8 @@ public class WifiStateReceiver extends BroadcastReceiver {
                     connectState = state;
                     networkType = netInfoType;
                     HHDLog.i("当前与之前类型相同（重新赋值），类型(int)当前=" + activeNetType + "<=>之前=" + netInfoType + "，之前连接状态=" + state);
-                    if (isRemoveDuplicates){
-                        temporaryShield = true;
-                    }
+                    HHDLog.e("这里 设置连接回调可以避免广播重复问题");
+                    mListener.onCurrentState(WifiStateListener.State.CONNECTED);
                 }
             } else {
                 connectState = state;
@@ -227,7 +181,7 @@ public class WifiStateReceiver extends BroadcastReceiver {
 
 
         if (false){
-            //考虑采用（但滞后）
+            //考虑采用（与上面功能上一致）
             //final String action = intent.getAction();
             if (action.equals(ConnectivityManager.CONNECTIVITY_ACTION)) {
                 ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);

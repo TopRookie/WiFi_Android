@@ -1,4 +1,4 @@
-package com.hehongdan.wifi_android.test;
+package com.hehongdan.wifi_android;
 
 import android.util.Log;
 
