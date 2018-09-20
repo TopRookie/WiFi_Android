@@ -1,4 +1,4 @@
-package com.hehongdan.wifi_android.test;
+package com.hehongdan.wifi_android;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -8,8 +8,6 @@ import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.util.Log;
-
-import com.hehongdan.wifi_android.MyLogger;
 
 /**
  * 类描述：WiFi状态的广播接收器
@@ -51,7 +49,6 @@ public class WifiStateReceiver extends BroadcastReceiver {
         if (WifiManager.SCAN_RESULTS_AVAILABLE_ACTION.equals(action)){
             HHDLog.v("WiFi扫描结果");
             mListener.onCurrentState(WifiStateListener.State.SCAN_RESULT);
-            //TODO 返回wifiManager.getScanResults();addAll(scanResults)
             //WiFi状态发生改变
         } else if (WifiManager.WIFI_STATE_CHANGED_ACTION.equals(action)){
             /**
@@ -96,8 +93,8 @@ public class WifiStateReceiver extends BroadcastReceiver {
                 HHDLog.v("网络状态改变，已经无连接--------------------------------------------------");
                 mListener.onCurrentState(WifiStateListener.State.DISCONNECTED);
             }else if (NetworkInfo.State.CONNECTED.equals(info_.getState())){
+                //TODO 这里会触发两次广播，改到方法（getNetworkTypeInfo()）
                 //HHDLog.e("网络状态改变，已经连接="+"WiFi名称");
-                //TODO
                 //mListener.onCurrentState(WifiStateListener.State.CONNECTED);
                 //粗粒度的网络状态（以上）
             } else {
@@ -116,6 +113,36 @@ public class WifiStateReceiver extends BroadcastReceiver {
                     HHDLog.v("网络状态改变（细粒度），网络失败");
                     mListener.onCurrentState(WifiStateListener.State.FAILED);
                 }
+
+
+
+                /*else if (NetworkInfo.DetailedState.SCANNING== state){
+                    HHDLog.v("网络状态改变（细粒度），SCANNING 扫描中");
+                    mListener.onCurrentState(WifiStateListener.State.SCAN_RESULT);
+                }*/
+
+                /*else if (NetworkInfo.DetailedState.DISCONNECTED == state){
+                    HHDLog.v("网络状态改变（细粒度），DISCONNECTED 已断开");
+                    mListener.onCurrentState(WifiStateListener.State.DISCONNECTED);
+                }else if (NetworkInfo.DetailedState. DISCONNECTING== state){
+                    HHDLog.v("网络状态改变（细粒度），DISCONNECTING 断开中...");
+                }
+                else if (NetworkInfo.DetailedState.BLOCKED == state){
+                    HHDLog.v("网络状态改变（细粒度），BLOCKED 阻塞");
+                }else if (NetworkInfo.DetailedState.CAPTIVE_PORTAL_CHECK == state){
+                    HHDLog.v("网络状态改变（细粒度），CAPTIVE_PORTAL_CHECK 捕获网站");
+                }else if (NetworkInfo.DetailedState.CONNECTED == state){
+                    HHDLog.v("网络状态改变（细粒度），CONNECTED 已连接");
+                }else if (NetworkInfo.DetailedState. FAILED== state){
+                    HHDLog.v("网络状态改变（细粒度），FAILED 连接失败");
+                }else if (NetworkInfo.DetailedState.IDLE== state){
+                    HHDLog.v("网络状态改变（细粒度），IDLE");
+                }else if (NetworkInfo.DetailedState.SUSPENDED== state){
+                    HHDLog.v("网络状态改变（细粒度），SUSPENDED 暂停");
+                }else if (NetworkInfo.DetailedState.VERIFYING_POOR_LINK== state){
+                    HHDLog.v("网络状态改变（细粒度），VERIFYING_POOR_LINK 连接差");
+                }*/
+
             }
         }
     }
@@ -178,7 +205,6 @@ public class WifiStateReceiver extends BroadcastReceiver {
                 HHDLog.w("当前网络连接的额外信息为空，之前类型(int)=" + netInfoType + "之前连接状态=" + state);
             }
         }
-
 
         if (false){
             //考虑采用（与上面功能上一致）

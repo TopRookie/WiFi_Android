@@ -1,4 +1,4 @@
-package com.hehongdan.wifi_android.test;
+package com.hehongdan.wifi_android;
 
 /**
  * 类描述：WiFi状态的监听器
@@ -20,34 +20,38 @@ public interface WifiStateListener {
         CLOSED,
         /** 打开 */
         OPENED,
-        /** 已经连接 */
+        /** 已连接 */
         CONNECTED,
-        /** 当前建立数据连接。*/
+        /** 连接中... */
         CONNECTING,
-        /** 断开中 */
+        /** 断开中... */
         DISCONNECTING,
-        /** 已经断开 */
+        /** 已断开 */
         DISCONNECTED,
-        /** IP流量被暂停 */
+        /** 暂停（IP流量被暂停） */
         SUSPENDED,
-        /** 尝试连接失败 */
+        /** 连接失败 */
         FAILED,
         /** 已经扫描 */
         SCAN_RESULT,
         /** 已经扫描 */
         WIFI_STATE_ENABLED,
+        /** 忘记成功 */
+        FORGET_SUCCESS,
+        /** 忘记成功 */
+        FORGET_FAILURE,
 
-        /** 网络连接建立，执行身份验证 */
+        /** 验证身份中...（网络连接建立，执行身份验证） */
         AUTHENTICATING,
-        /** 等待DHCP服务器的响应，以便分配IP地址信息 */
+        /** 获取IP地址中...（等待DHCP服务器的响应，以便分配IP地址信息） */
         OBTAINING_IPADDR,
         /** 准备开始数据连接设置 */
-         DLE,
-        /** 搜索一个可用的访问点 */
+        IDLE,
+        /** 扫描中...（搜索一个可用的访问点） */
          SCANNING,
          /** 对这个网络的访问被阻塞 */
          BLOCKED,
-         /** 链接的连通性很差 */
+         /** 连接差（链接的连通性很差） */
          VERIFYING_POOR_LINK,
          /** 检查网络是否是一个被捕获的门户 */
          CAPTIVE_PORTAL_CHECK;

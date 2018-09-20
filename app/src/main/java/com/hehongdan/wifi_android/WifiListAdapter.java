@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 类描述：
+ * 类描述：WiFi列表适配器
  *
  * @author hehongdan
  * @version v2018/8/25

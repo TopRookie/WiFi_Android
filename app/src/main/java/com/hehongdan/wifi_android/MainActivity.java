@@ -8,44 +8,50 @@ import android.net.ConnectivityManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CompoundButton;
-import android.widget.CompoundButton.OnCheckedChangeListener;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.hehongdan.wifi_android.test.WifiController;
-import com.hehongdan.wifi_android.test.WifiStateListener;
-import com.hehongdan.wifi_android.test.WifiStateReceiver;
-
+import java.lang.ref.WeakReference;
 import java.util.List;
 
 import permissions.dispatcher.NeedsPermission;
 import permissions.dispatcher.RuntimePermissions;
 
 /**
+ * 类描述：测试WiFi各个功能
+ *
+ * @author hehongdan
+ * @version v2018/8/25
+ * @date 2018/8/25
  *
  */
 @RuntimePermissions
-public class MainActivity extends AppCompatActivity implements OnCheckedChangeListener,View.OnClickListener {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     /**
      * WiFi状态监听
      */
-    private WifiStateListener HHDlistener = new WifiStateListener() {
+    private WifiStateListener mWifiStateListener = new WifiStateListener() {
         @Override
         public void onCurrentState(State state) {
+            Message message = new Message();
+            message.what = mWhat;
+            String string;
             switch (state){
                 case OPENED:
-                    HHDLog.v("WiFi已打开");
-                    tv_state.setText("WiFi已打开");
+                    string = "WiFi已打开";
+                    message.obj = string;
+                    mMyHandler.sendMessage(message);
+                    HHDLog.v(string);
                     break;
                 case CLOSED:
                     HHDLog.v("WiFi已关掉");
@@ -67,6 +73,26 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
                     HHDLog.e("已经连接（调用一次）=" + mWifiController.getCurrentSsid());
                     tv_state.setText("成功连接：" + mWifiController.getCurrentSsid());
                     break;
+                case FAILED:
+                    HHDLog.e("连接失败");
+                    tv_state.setText("连接失败");
+                    break;
+                case DISCONNECTED:
+                    HHDLog.v("已经断开");
+                    tv_state.setText("已经断开");
+                    break;
+                case FORGET_SUCCESS:
+                    string = "忘记成功";
+                    message.obj = string;
+                    mMyHandler.sendMessage(message);
+                    HHDLog.v(string);
+                    break;
+                case FORGET_FAILURE:
+                    string = "忘记失败";
+                    message.obj = string;
+                    mMyHandler.sendMessage(message);
+                    HHDLog.v(string);
+                    break;
                 case SCAN_RESULT:
                     HHDLog.v("WiFi扫描返回...");
                     //在这里处理wifi的结果
@@ -79,7 +105,7 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
                             mHHDAdapter.notifyDataSetChanged();
                         }
                     } else {
-                        Log.v(TAG, "WiFi扫描返回=null");
+                        HHDLog.v("WiFi扫描返回=null");
                     }
                     break;
 
@@ -89,7 +115,31 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
         }
     };
 
-    private MyLogger HHDLog = MyLogger.HHDLog();
+    private static class MyHandler extends Handler{
+        WeakReference<MainActivity> weakReference;
+        public MyHandler(MainActivity activity){
+            weakReference = new WeakReference<MainActivity>(activity);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            MainActivity activity = weakReference.get();
+            String obj;
+            switch (msg.what) {
+                case mWhat:
+                    obj = (String) msg.obj;
+                    activity.tv_state.setText(obj);
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    private MyHandler mMyHandler = new MyHandler(MainActivity.this);
+    private static final int mWhat = 1;
+    private static MyLogger HHDLog = MyLogger.HHDLog();
     private static final String TAG = "MainActivity";
     /** WiFi控制器 */
     private WifiController mWifiController;
@@ -113,9 +163,10 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
     private Button btn_connect;
     /** WiFi断开 */
     private Button btn_disconnect;
+    /** WiFi忘记 */
+    private Button bnt_forget;
     /** 上下文 */
     private Context mContext;
-
 
     /**
      * 需要定位权限（待处理）
@@ -192,8 +243,10 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
         btn_close.setOnClickListener(this);
         btn_connect = (Button) findViewById(R.id.btn_connect);
         btn_connect.setOnClickListener(this);
-        btn_disconnect = (Button) findViewById(R.id.btn_disconnect);
+        btn_disconnect = (Button) findViewById(R.id.btn_scan);
         btn_disconnect.setOnClickListener(this);
+        bnt_forget = (Button) findViewById(R.id.bnt_forget);
+        bnt_forget.setOnClickListener(this);
         //wifiOpenOrClose = (Switch) findViewById(R.id.wifiOpenOrClose);
         //wifiOpenOrClose.setOnCheckedChangeListener(this);
         mRecyclerView = (RecyclerView) findViewById(R.id.recyclerView);
@@ -211,7 +264,9 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
 
             @Override
             public void onItemLongClick(View view, int position) {
-
+                int id = mWifiController.getNetworkIdFromScanResult(mWifiScanResult.get(position));
+                mWifiController.forget(id, new ProxyForgetListener(),mWifiStateListener);
+                Toast.makeText(mContext, "需要忘记的网络ID=" + id, Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -227,15 +282,18 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
                 mWifiController.closeWifi();
                 break;
             case R.id.btn_connect:
-                Toast.makeText(mContext,"选择底部列表进行连接",Toast.LENGTH_LONG).show();
+                Toast.makeText(mContext,"选择底部列表，短按进行连接",Toast.LENGTH_LONG).show();
                 break;
 
             case R.id.btn_scan:
-                mWifiController.scanWifiAround();
+                mWifiController.scanAround();
                 break;
             case R.id.btn_disconnect:
                 Toast.makeText(mContext,"正在断开...",Toast.LENGTH_LONG).show();
                 mWifiController.disconnectCurrent();
+                break;
+            case R.id.bnt_forget:
+                Toast.makeText(mContext,"选择底部列表，长按进行忘记",Toast.LENGTH_LONG).show();
                 break;
 
             default:
@@ -247,11 +305,11 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
      * 初始化数据
      */
     private void initData() {
-        mWifiStateReceiver = new WifiStateReceiver(HHDlistener);
+        mWifiStateReceiver = new WifiStateReceiver(mWifiStateListener);
         mWifiController = WifiController.getInstant(getApplicationContext());
         if (mWifiController.isWifiEnabled()) {
             //wifiOpenOrClose.setChecked(true);
-            mWifiController.scanWifiAround();
+            mWifiController.scanAround();
         }
     }
 
@@ -259,34 +317,38 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
     protected void onResume() {
         super.onResume();
         //注册广播接收者
-        registerBroadcastReceiver();
+        registerWifiBroadcastReceiver();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         //注销广播接收者
-        unregisterReceiver();
+        //unregisterWifiBroadcastReceiver();
     }
 
     @Override
-    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-        mWifiController.setWifiEnabled(isChecked);
+    protected void onDestroy() {
+        super.onDestroy();
+        HHDLog.e("界面销毁");
     }
+
+    //    @Override
+//    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+//        mWifiController.setWifiEnabled(isChecked);
+//    }
 
     /**
      * 在这里注册广播接收者
-     * 这里面注册广播的话,包括:
-     * 1 wifi开启状态的监听(wifi关闭,wifi打开)
-     * 2 wifi连接的广播
-     * 3 wifi连接状态改变的广播
-     * <p>
      */
-    private void registerBroadcastReceiver() {
+    private void registerWifiBroadcastReceiver() {
         IntentFilter filter = new IntentFilter();
-        //设置意图过滤
+        /*设置意图过滤
+        wifi开启状态的监听(wifi关闭,wifi打开)*/
         filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
+        //wifi连接的广播
         filter.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
+        //wifi连接状态改变的广播
         filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         //网络连接发生变化
         filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
@@ -300,7 +362,7 @@ public class MainActivity extends AppCompatActivity implements OnCheckedChangeLi
     /**
      * 取消注册广播接收者
      */
-    private void unregisterReceiver() {
+    private void unregisterWifiBroadcastReceiver() {
         unregisterReceiver(mWifiStateReceiver);
     }
 

@@ -1,4 +1,4 @@
-package com.hehongdan.wifi_android.test;
+package com.hehongdan.wifi_android;
 
 import android.content.Context;
 import android.net.wifi.ScanResult;
@@ -11,44 +11,45 @@ import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.hehongdan.wifi_android.InterfaceProxy;
-
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.List;
 
 /**
+ * WiFi控制类
+ *
+ * 参考：
+ * https://github.com/AndroidKun/WiFihotspot
+ *
  * Created by Administrator on 2017/7/27.
  */
 
 public class WifiController {
+    private MyLogger HHDLog = MyLogger.HHDLog();
     private static final String TAG = "WifiController";
+    /** WiFi管理类 */
     private final WifiManager mWifiManager;
+    /** 上下文 */
     private final Context mContext;
-    private OnWifiConnectListener mOnWifiConnectListener;
+    /** WiFi连接监听器 */
+    private WifiStateListener mWifiStateListener;
+    /** 是否需要输入密码回调接口 */
+    private INeedPassword iNeedPassword;
 
-    private WifiController(Context context) {
-        //拿到wifi管理器
-        mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-        this.mContext = context;
-    }
-
-    private static WifiController sInstant = null;
 
     /**
-     * 获取 一个单例对象
-     *
-     * @param context 上下文
-     * @return 返回实例对象
+     * 网络加密模式（枚举）
      */
-    public static WifiController getInstant(Context context) {
-        if (sInstant == null) {
-            synchronized (WifiController.class) {
-                if (sInstant == null) {
-                    sInstant = new WifiController(context);
-                }
-            }
-        }
-        return sInstant;
+    public enum SecurityMode {
+        /** 无密码（开放） */
+        OPEN,
+        /** WEP加密 */
+        WEP,
+        /** WPA加密 */
+        WPA,
+        /** WPA2加密 */
+        WPA2
     }
 
     /**
@@ -62,8 +63,38 @@ public class WifiController {
          */
         void isNeed(boolean need);
     }
-    /** 是否需要输入密码回调接口 */
-    private INeedPassword iNeedPassword;
+
+
+    /**
+     * WiFi控制器构造函数（私有）
+     *
+     * @param context 上下文
+     */
+    private WifiController(Context context) {
+        //拿到wifi管理器
+        mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+        this.mContext = context;
+    }
+
+    private static WifiController sInstant = null;
+
+    /**
+     * 获取 一个单例对象
+     *
+     * @param context   上下文
+     * @return          返回实例对象（WiFi控制器）
+     */
+    public static WifiController getInstant(Context context) {
+        if (sInstant == null) {
+            synchronized (WifiController.class) {
+                if (sInstant == null) {
+                    sInstant = new WifiController(context);
+                }
+            }
+        }
+        return sInstant;
+    }
+
     /**
      * 连接WiFi
      *
@@ -210,24 +241,24 @@ public class WifiController {
     }
 
     /**
-     * 生成新的配置信息 用于连接Wifi
+     * 根据名称、密码、加密方式生成WiFi配置信息
      *
-     * @param SSID     WIFI名字
-     * @param password WIFI密码
-     * @param mode     WIFI加密类型
-     * @return 配置
+     * @param ssid      名称
+     * @param password  密码
+     * @param mode      加密方式
+     * @return          WiFi配置信息
      */
-    public WifiConfiguration createWifiConfiguration(@NonNull String SSID, @Nullable String password, @NonNull SecurityMode mode) {
+    public WifiConfiguration createWifiConfiguration(@NonNull String ssid, @Nullable String password, @NonNull SecurityMode mode) {
         WifiConfiguration config = new WifiConfiguration();
         config.allowedAuthAlgorithms.clear();
         config.allowedGroupCiphers.clear();
         config.allowedKeyManagement.clear();
         config.allowedPairwiseCiphers.clear();
         config.allowedProtocols.clear();
-        config.SSID = "\"" + SSID + "\"";
+        config.SSID = "\"" + ssid + "\"";
 
         if (mode == SecurityMode.OPEN) {
-            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+            config.allowedKeyManagement.set(KeyMgmt.NONE);
         } else if (mode == SecurityMode.WEP) {
             config.hiddenSSID = true;
             config.wepKeys[0] = "\"" + password + "\"";
@@ -236,14 +267,14 @@ public class WifiController {
             config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP);
             config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP40);
             config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP104);
-            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+            config.allowedKeyManagement.set(KeyMgmt.NONE);
             config.wepTxKeyIndex = 0;
         } else if (mode == SecurityMode.WPA) {
             config.preSharedKey = "\"" + password + "\"";
             config.hiddenSSID = true;
             config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN);
             config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP);
-            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+            config.allowedKeyManagement.set(KeyMgmt.WPA_PSK);
             config.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP);
             // config.allowedProtocols.set(WifiConfiguration.Protocol.WPA);
             config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP);
@@ -254,15 +285,14 @@ public class WifiController {
     }
 
     /**
-     * 判断配置在系统中是否存在
+     * 查找系统是否存在此WiFi配置信息，存在就返回系统的相同名称WiFi的配置信息
      *
-     * @param config 新的配置
-     * @return 配置存在就更新配置，把新的配置返回，配置不存在就返回null
+     * @param config    新WiFi的配置信息
+     * @return          （null=不存在）返回系统的相同名称WiFi（更新的）配置信息
      */
     private WifiConfiguration isExists(WifiConfiguration config) {
         List<WifiConfiguration> existingConfigs = mWifiManager.getConfiguredNetworks();
         for (WifiConfiguration existingConfig : existingConfigs) {
-            Log.i(TAG, "系统保存配置SSID=" + existingConfig.SSID + "，网络ID=" + existingConfig.networkId);
             if (existingConfig.SSID.equals(config.SSID)) {
                 config.networkId = existingConfig.networkId;
                 return config;
@@ -280,7 +310,7 @@ public class WifiController {
     public WifiConfiguration isExsits(String ssid) {
         List<WifiConfiguration> existingConfigs = mWifiManager.getConfiguredNetworks();
         for (WifiConfiguration existingConfig : existingConfigs) {
-            if (existingConfig.SSID.equals(appendSsid(ssid))) {
+            if (existingConfig.SSID.equals(appendSlash(ssid))) {
                 return existingConfig;
             }
         }
@@ -288,8 +318,10 @@ public class WifiController {
     }
 
     /**
-     * @return 返回扫描的wifi结果, 是一个list集合
-     * @call 当收到扫描结果的广播以后就可以调用这个方法去获取扫描结果
+     * 获取WiFi扫描结果
+     *
+     * @call    当收到WiFi扫描结果的广播后，调用这个方法获取扫描结果
+     * @return  返回WiFi扫描结果的List集合
      */
     public List<ScanResult> getWifiScanResult() {
         return mWifiManager.getScanResults();
@@ -309,7 +341,7 @@ public class WifiController {
     /**
      * 扫描周围的WiFi
      */
-    public void scanWifiAround() {
+    public void scanAround() {
         if (!isWifiEnabled()) {
             //TODO 优化
             //开启再扫描（提示用户）
@@ -320,8 +352,9 @@ public class WifiController {
     }
 
     /**
-     * @return true表示wifi已经打开, false表示wifi没有打开, 状态为:
-     * 打开中,或者关闭,或者关闭中...
+     * 当前WiFi是否可用
+     *
+     * @return  true=已经打开，false=没打开（打开中、关闭中、打开、关闭）
      */
     public boolean isWifiEnabled() {
         return mWifiManager.isWifiEnabled();
@@ -331,10 +364,9 @@ public class WifiController {
      * 打开WiFi
      */
     public void openWifi() {
-        //判断当前wifi的状态,是关闭还是打开
+        //判断当前WiFi的状态是关闭
         if (!isWifiEnabled()) {
             setWifiEnabled(true);
-
         }
     }
 
@@ -342,7 +374,7 @@ public class WifiController {
      * 关闭WiFi
      */
     public void closeWifi() {
-        //判断当前wifi的状态,是关闭还是打开
+        //判断当前WiFi的状态是打开
         if (isWifiEnabled()) {
             setWifiEnabled(false);
         }
@@ -372,7 +404,7 @@ public class WifiController {
         if (null != wifiConfigurations){
             for (WifiConfiguration wifiConfiguration : wifiConfigurations) {
                 //拿到指定的WiFi配置
-                if (wifiConfiguration.SSID.equals(appendSsid(ssid))){
+                if (wifiConfiguration.SSID.equals(appendSlash(ssid))){
                     networkId = wifiConfiguration.networkId;
                     return networkId;
                 }
@@ -382,13 +414,15 @@ public class WifiController {
     }
 
     /**
-     * 根据网络Id断开WiFi
+     * 断开并禁用指定WiFi（异步的，可能需要注册监听）
      *
-     * @param netId netId
-     * @return 是否断开
+     * @param networkId WiFi网络ID
+     * @return          断开结果
      */
-    public boolean disconnect(int netId) {
-        boolean isDisable = mWifiManager.disableNetwork(netId);
+    public boolean disconnect(int networkId) {
+        //禁用指定的网络（true=禁用操作成功）
+        boolean isDisable = mWifiManager.disableNetwork(networkId);
+        //断开连接（true=断开操作成功）
         boolean isDisconnect = mWifiManager.disconnect();
         return isDisable && isDisconnect;
     }
@@ -411,17 +445,31 @@ public class WifiController {
     /**
      * 拼接带"\"SSID
      *
-     * @param ssid
-     * @return
+     * @param ssid  WiFi名称
+     * @return      带"\"的WiFi名称
      */
-    public static String appendSsid(String ssid) {
+    public static String appendSlash(String ssid) {
         return "\"" + ssid + "\"";
     }
 
     /**
-     * 获取WIFI的加密方式
+     * 去掉前后"\"的SSID
      *
-     * @param scanResult    WIFI信息
+     * @param ssid  WiFi名称
+     * @return      带"\"的WiFi名称
+     */
+    public static String subSlash(String ssid) {
+        int len = ssid.length();
+        if (ssid.startsWith("\"") && ssid.endsWith("\"")) {
+            return ssid.substring(1, len - 1);
+        }
+        return null;
+    }
+
+    /**
+     * 获取WiFi加密方式
+     *
+     * @param scanResult    WiFi扫描结果
      * @return              加密方式（null=不确定）
      */
     public SecurityMode getSecurityMode(@NonNull ScanResult scanResult) {
@@ -446,7 +494,7 @@ public class WifiController {
     /**
      * 获取当前WiFi信息
      *
-     * @return 当前WiFi信息
+     * @return 当前WiFi信息（null=出现异常）
      */
     public WifiInfo getCurrentInfo() {
         try {
@@ -458,20 +506,12 @@ public class WifiController {
     }
 
 
-
-
-
-
-
-
-
-
-
-
     /**
-     * 这个方法用于打开或关闭wifi
-     * 当wifi打开的时候,那么就会关闭wifi
-     * 当wifi关闭的时候,那么就会打开wifi
+     * 打开或者关闭WiFi
+     * <p>
+     *     当WiFi处于打开时，则关闭WiFi；
+     *     当WiFi处于关闭时，则打开WiFi。
+     * </p>
      */
     public void openOrCloseWifi() {
         //判断当前wifi的状态,是关闭还是打开
@@ -483,36 +523,22 @@ public class WifiController {
     }
 
     /**
-     * 获取NetworkId
+     * 查找系统是否存在此WiFi扫描信息，存在就返回系统的相同名称WiFi的networkId
      *
-     * @param scanResult 扫描到的WIFI信息
-     * @return 如果有配置信息则返回配置的networkId 如果没有配置过则返回-1
+     * @param scanResult    WiFi扫描的结果
+     * @return              （-1=不存在）返回系统的相同名称WiFi的networkId
      */
-    public int getNetworkIdFromConfig(ScanResult scanResult) {
-        String SSID = String.format("\"%s\"", scanResult.SSID);
+    public int getNetworkIdFromScanResult(ScanResult scanResult) {
+        String ssid = String.format("\"%s\"", scanResult.SSID);
         List<WifiConfiguration> existingConfigs = mWifiManager.getConfiguredNetworks();
-
         for (WifiConfiguration existingConfig : existingConfigs) {
-            if (existingConfig.SSID.equals(SSID)) {
+            if (existingConfig.SSID.equals(ssid)) {
+                Log.v(TAG, ssid + "对应的网络ID=" + existingConfig.networkId);
                 return existingConfig.networkId;
             }
         }
-
         return -1;
     }
-
-
-
-
-    /**
-     * 这个枚举用于表示网络加密模式
-     */
-    public enum SecurityMode {
-        OPEN, WEP, WPA, WPA2
-    }
-
-
-
 
     /**
      * 获取WiFi（许可）加密方式（wifi隐藏ssid还可以获取加密方式）
@@ -539,19 +565,18 @@ public class WifiController {
 
 
     /**
-     * @param ssid 可以理解为是wifi的名字
-     * @return 反回的是wifi配置对象
+     * 根据WiFi的SSID获取系统保存的配置信息
+     *
+     * @param ssid  WiFi名称
+     * @return      配置信息
      */
-    public WifiConfiguration getConfigurationBySSID(String ssid) {
-
+    public WifiConfiguration getConfigBySsid(String ssid) {
         List<WifiConfiguration> configuredNetworks = mWifiManager.getConfiguredNetworks();
         for (WifiConfiguration existingConfig : configuredNetworks) {
-            Log.i(TAG, "根据SSID获取系统保存配置=" + ssid);
             if (existingConfig.SSID.equals(ssid)) {
                 return existingConfig;
             }
         }
-
         return null;
     }
 
@@ -567,14 +592,14 @@ public class WifiController {
     }
 
     /**
-     * 通过密码连接到WIFI
+     * 连接指定WiFi（带密码）
      *
-     * @param scanResult 要连接的WIFI
-     * @param pwd        密码
-     * @param listener   连接的监听
+     * @param scanResult    需要连接的WiFi扫描信息
+     * @param pwd           密码
+     * @param listener      连接的监听器
      */
     @Deprecated
-    public void connectionWifiByPassword(@NonNull ScanResult scanResult, @Nullable String pwd, @NonNull OnWifiConnectListener listener) {
+    public void connectionWifiByPassword(@NonNull ScanResult scanResult, @Nullable String pwd, @NonNull WifiStateListener listener) {
         // SSID
         String SSID = scanResult.SSID;
         // 加密方式
@@ -597,30 +622,25 @@ public class WifiController {
     }
 
     /**
-     * 通过NetworkId连接到WIFI （配置过的网络可以直接获取到NetworkID，从而不用再输入密码）
+     * 通过networkId连接到指定WiFi（配置过的网络可以直接获取到NetworkID，不用再输入密码）
      *
-     * @param SSID      WIFI名字
-     * @param networkId NetworkId
-     * @param listener  连接的监听
+     * @param SSID      WiFi名称
+     * @param networkId 网络ID（失败返回-1）
+     * @param listener  连接状态监听器
      */
     @Deprecated
-    public void connectionWifiByNetworkId(@NonNull String SSID, int networkId, @NonNull OnWifiConnectListener listener) {
+    public void connectionWifiByNetworkId(@NonNull String SSID, int networkId, @NonNull WifiStateListener listener) {
         // 连接的回调监听
-        mOnWifiConnectListener = listener;
-        // 连接开始的回调
-        mOnWifiConnectListener.onStart(SSID);
+        mWifiStateListener = listener;
         /*
          * 判断 NetworkId 是否有效
          * -1 表示配置参数不正确，我们获取不到会返回-1.
          */
         if (-1 == networkId) {
-            // 连接WIFI失败
-            if (null != mOnWifiConnectListener) {
-                // 配置错误
-                mOnWifiConnectListener.onFailure(SSID);
-                // 连接完成
-                mOnWifiConnectListener.onFinish();
-                mOnWifiConnectListener = null;
+            // 连接WiFi失败
+            if (null != mWifiStateListener) {
+                // 失败回调
+                mWifiStateListener.onCurrentState(WifiStateListener.State.FAILED);
             }
             return;
         }
@@ -628,16 +648,13 @@ public class WifiController {
         WifiInfo wifiInfo = getCurrentInfo();
 
         if (null != wifiInfo) {
-            // 断开当前连接
+            // 断开当前连接（先断开当前再连接指定）
             boolean isDisconnect = disconnect(wifiInfo.getNetworkId());
             if (!isDisconnect) {
-                // 断开当前网络失败
-                if (null != mOnWifiConnectListener) {
-                    // 断开当前网络失败
-                    mOnWifiConnectListener.onFailure(SSID);
-                    // 连接完成
-                    mOnWifiConnectListener.onFinish();
-                    mOnWifiConnectListener = null;
+                // 断开WiFi失败
+                if (null != mWifiStateListener) {
+                    // 失败回调
+                    mWifiStateListener.onCurrentState(WifiStateListener.State.FAILED);
                 }
                 return;
             }
@@ -646,25 +663,84 @@ public class WifiController {
         // 连接WIFI
         boolean isEnable = mWifiManager.enableNetwork(networkId, true);
         if (!isEnable) {
-            // 连接失败
-            if (null != mOnWifiConnectListener) {
-                // 连接失败
-                mOnWifiConnectListener.onFailure(SSID);
-                // 连接完成
-                mOnWifiConnectListener.onFinish();
-                mOnWifiConnectListener = null;
+            // 连接WiFi失败
+            if (null != mWifiStateListener) {
+                // 失败回调
+                mWifiStateListener.onCurrentState(WifiStateListener.State.FAILED);
             }
         }
     }
 
+    /**
+     * 根据ID忘记（移除）WiFi
+     *
+     * @param networkId WiFi网络ID
+     * @param action  忘记成功、失败的代理监听器（ActionListener）
+     *
+     * @see ProxyForgetListener 只有本APP输入密码的WiFi才能成功忘记
+     * <p> 参考文章
+     *                          https://www.jianshu.com/p/9b5ecfb4ca63
+     *                          https://blog.csdn.net/leslietuang/article/details/51203692
+     * </p>
+     */
+    public void forget(int networkId, @NonNull ProxyForgetListener action, @NonNull WifiStateListener state) {
+        if (-1 == networkId) {
+            return;
+        }
+        action.setmWifiStateListener(state);
 
+        try {
+            //返回此 Object 的运行时类
+            Class<? extends WifiManager> mWifiManagerClazz = mWifiManager.getClass();
+            //Class<?> mWifiManagerClazz = Class.forName("android.net.wifi.WifiManager");//等同上一句
+            //HHDLog.e("【测试】 反射的类名称（WifiManager）=" + mWifiManagerClazz.getName());
+            //返回与带有给定字符串名的类或接口相关联的 Class 对象（参数：所需类的完全限定名）
+            Class<?> mActionListenerClazz = Class.forName("android.net.wifi.WifiManager$ActionListener");
+            //HHDLog.e("【测试】 反射的内部接口名称（ActionListener）=" + mActionListenerClazz.getName());
+            //InterfaceProxy_ mInterfaceProxy = new InterfaceProxy_();
+            //返回一个指定接口的代理类实例（参数：定义代理类的类加载器；代理类要实现的接口列表；指派方法调用的调用处理程序）
+            Object actionListenerObject = Proxy.newProxyInstance(WifiController.class.getClassLoader(), new Class[]{mActionListenerClazz}, action);
+            //返回一个 Method 对象，该对象反映此 Class 对象所表示的类或接口的指定已声明方法（参数：方法名；参数数组）
+            Method mForget = mWifiManagerClazz.getDeclaredMethod("forget", int.class, mActionListenerClazz);
+            //Method mForget = mWifiManager.getDeclaredMethod("forget", new Class[]{int.class, mActionListener});//等同上一句
+            HHDLog.e("【测试】 反射创建方法名称（forget）=" + mForget);
+            mForget.invoke(mWifiManager, new Object[]{networkId, actionListenerObject});
+            //mForget.invoke(mWifiManager.newInstance(), new Object[]{networkId, actionListenerObject});//等同上一句
+            HHDLog.e("【测试】 反射调用方法名称（forget）参数=" + networkId + "，" + actionListenerObject);
+        } catch (ClassNotFoundException e) {
+            HHDLog.e("【测试】 反射出错（无法定位该类）=" + e);
+            e.printStackTrace();
+        } catch (NoSuchMethodException e) {
+            HHDLog.e("【测试】 反射出错（找不到匹配的方法）=" + e);
+            e.printStackTrace();
+        } catch (SecurityException e) {
+            HHDLog.e("【测试】 反射出错（存在安全侵犯）=" + e);
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            HHDLog.e("【测试】 反射出错（方法无法访问）=" + e);
+            e.printStackTrace();
+        } catch (IllegalArgumentException e) {
+            HHDLog.e("【测试】 反射出错（参数不正确）=" + e);
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            HHDLog.e("【测试】 反射出错（构造出错）=" + e);
+            e.printStackTrace();
+        } /*catch (InstantiationException e) {
+            HHDLog.e("【测试】 反射出错（创建实例出错）=" + e);
+            e.printStackTrace();
+        }*/
 
+    }
 
-
-
-
-
-    public void forget(int netId, InterfaceProxy listener) {
+    /**
+     * 根据ID忘记（移除）WiFi
+     *
+     * @param networkId WiFi网络ID
+     * @param listener  忘记成功、失败的代理监听器（ActionListener）
+     */
+    @Deprecated
+    public void forget(int networkId, ProxyInterface listener) {
+        if (-1 == networkId){return;}
 
         //有部分码友说这使用删除的方式有时候会出现问题，后来去翻看了一下android设置里的源码。
         //是需是直接掉调用forget方法来删除指写的wifi配置的
@@ -709,7 +785,6 @@ public class WifiController {
 //            public void onFailure(int reason);
 //        }
 
-
         //所以这里面我们就要这样子做了
         //这部分代码是通过反射的方法去获取到ActionListener这个类的字节码对象
         Class<?> actionListenerClazz = null;
@@ -735,21 +810,12 @@ public class WifiController {
             Method forget = wifiClazz.getDeclaredMethod("forget", int.class, actionListenerClazz);
             Log.d(TAG, "method name == " + forget);
             //执行方法
-            forget.invoke(mWifiManager, netId, listener);
+            forget.invoke(mWifiManager, networkId, listener);
         } catch (Exception e) {
             e.printStackTrace();
             Log.d(TAG, "e == " + e);
         }
-
         //如果是直接放在系统中编译的话，那么直接是调用wifiManager里的forget方法即可
-
     }
 
-
-
-    public interface OnWifiConnectListener{
-        void onStart(String SSID);
-        void onFinish();
-        void onFailure(String SSID);
-    }
 }
