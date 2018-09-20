@@ -13,7 +13,7 @@
 
 ### 截图
 
-![原demo](https://github.com/HeHongdan/WiFiDemo/blob/master/image/20180823.png)![image](https://github.com/HeHongdan/WiFiDemo/image/20180823.png)![image](链接)
+![扫描结果](https://github.com/HeHongdan/WiFiDemo/blob/master/image/20180920-1.jpg)![连接界面](https://github.com/HeHongdan/WiFiDemo/blob/master/image/20180920-2.jpg)![忘记密码](https://github.com/HeHongdan/WiFiDemo/blob/master/image/20180920-3.jpg)
 
 ---
 
